@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vision-OPD: Learning to See Fine Details for Multimodal LLMs</title>
+<meta name="description" content="Vision-OPD: Learning to See Fine Details for Multimodal LLMs via On-Policy Self-Distillation">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Google+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f8f9fa; --ink:#111418; --sub:#5b6370; --line:#e2e8f0;
+    --accent:#3b82f6; --accent-dk:#1e40af; --accent-soft:#dbeafe;
+    --red:#dc2626; --soft:#eff5ff; --chip:#eef2f7; --card:#ffffff;
+    --serif:"Google Sans","Noto Sans SC",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --sans:"Google Sans","Noto Sans SC",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --max:900px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.85;font-size:17px;-webkit-font-smoothing:antialiased}
+
+  /* language toggling */
+  [data-lang="en"] .zh{display:none}
+  [data-lang="zh"] .en{display:none}
+  [data-lang="zh"] body, body[data-lang]{}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:50;background:rgba(248,249,250,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .nav-in{max-width:var(--max);margin:0 auto;padding:12px 22px;display:flex;align-items:center;gap:20px}
+  .brand{font-weight:700;letter-spacing:.3px;color:var(--accent);font-size:18px;text-decoration:none;flex:none}
+  .nav-links{display:flex;gap:22px;margin-left:auto;flex-wrap:wrap}
+  .nav-links a{color:var(--sub);text-decoration:none;font-size:14.5px;font-weight:500}
+  .nav-links a:hover{color:var(--accent)}
+  .lang-toggle{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;flex:none;background:#fff}
+  .lang-toggle button{border:0;background:transparent;padding:5px 13px;font-size:13px;font-weight:600;cursor:pointer;color:var(--sub);font-family:var(--sans)}
+  .lang-toggle button.active{background:var(--accent);color:#fff}
+
+  .wrap{max-width:var(--max);margin:0 auto;padding:0 22px}
+
+  /* hero */
+  header.hero{padding:54px 22px 30px;text-align:center}
+  header.hero .wrap{padding:0}
+  h1.title{font-family:var(--serif);font-size:40px;line-height:1.3;font-weight:700;letter-spacing:normal;color:#111}
+  h1.title .zh{font-size:30px;white-space:nowrap;letter-spacing:0}
+  .subtitle{margin-top:14px;font-size:18px;color:var(--accent);font-weight:600}
+  .tagline{margin-top:10px;color:var(--sub);font-family:var(--sans);font-size:17px;font-weight:500}
+  .authors{margin-top:24px;font-size:17.5px;line-height:2;font-weight:500}
+  .authors a{color:var(--accent);text-decoration:none}
+  .authors sup{font-size:11px;color:var(--sub)}
+  .affil{margin-top:10px;color:var(--sub);font-size:15px;line-height:1.8}
+  .affil sup{font-size:10px}
+  .corres{margin-top:8px;color:var(--sub);font-size:13.5px;font-family:var(--sans)}
+
+  /* buttons — white pill style (atlas-like) */
+  .btns{margin-top:26px;display:flex;gap:11px;justify-content:center;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;
+       background:rgba(255,255,255,.9);color:#1f2937;text-decoration:none;border:1px solid var(--line);
+       border-radius:999px;font-size:15px;font-weight:600;box-shadow:0 6px 20px rgba(16,24,40,.06);
+       transition:transform .12s,box-shadow .12s,border-color .12s}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(16,24,40,.12);border-color:rgba(59,130,246,.4);color:var(--accent-dk)}
+  .btn .ic{font-size:15px;line-height:1}
+
+  /* sections — each is a white card on the grey page */
+  section{background:var(--card);border-radius:12px;padding:10px 34px 28px;margin:22px 0;box-shadow:0 2px 12px rgba(0,0,0,.05)}
+  h2.sec{font-family:var(--serif);font-size:26px;font-weight:700;text-align:left;margin:18px 0 22px;color:#111;
+       border-bottom:2px solid var(--line);padding-bottom:10px}
+  h3.sub{font-size:19px;font-weight:600;margin:26px 0 8px;color:var(--accent-dk)}
+  p{margin:14px 0;color:#3a4049}
+  .lead{font-size:18px}
+  hr.div{display:none}
+  strong{font-weight:600;color:#1f2937}
+  .hl{color:var(--accent);font-weight:700}
+  code{font-family:"SF Mono",ui-monospace,Menlo,monospace;background:var(--chip);padding:1px 6px;border-radius:5px;font-size:14.5px;color:var(--accent-dk)}
+  ul.clean{margin:12px 0;list-style:none}
+  ul.clean li{position:relative;padding-left:24px;margin:9px 0}
+  ul.clean li::before{content:"";position:absolute;left:6px;top:11px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  ol.steps{margin:12px 0 12px 4px;list-style:none;counter-reset:s}
+  ol.steps li{position:relative;padding:8px 0 8px 44px;margin:6px 0}
+  ol.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:6px;width:28px;height:28px;border-radius:50%;
+       background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  blockquote{margin:18px 0;padding:16px 20px;background:var(--soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;
+       font-weight:500;color:var(--accent-dk);font-size:17.5px}
+
+  /* figures */
+  figure{margin:24px 0;text-align:center}
+  figure img{max-width:100%;border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 22px rgba(0,0,0,.06)}
+  figure.plain img{border:0;box-shadow:none}
+  figcaption{margin-top:12px;font-size:14px;color:var(--sub);font-family:var(--sans);line-height:1.7;max-width:780px;margin-left:auto;margin-right:auto}
+  figcaption b{color:var(--ink)}
+
+  /* example compare cards */
+  .cmp{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0}
+  .cmp .card{flex:1;min-width:240px;border-radius:12px;padding:16px 18px;font-size:15.5px}
+  .cmp .wrong{background:#fdecea;border:1px solid #f5c6c0}
+  .cmp .right{background:#eafaf0;border:1px solid #b9e6c9}
+  .badge{display:inline-block;font-size:12px;padding:2px 9px;border-radius:6px;font-weight:700;margin-left:4px}
+  .badge.r{background:#fff;color:#c0392b}
+  .badge.g{background:#fff;color:#1e8e4e}
+
+  /* highlight stat */
+  .statbox{background:linear-gradient(135deg,var(--accent-soft),#fff);border:1px solid #bfdbfe;border-radius:14px;padding:22px 24px;margin:20px 0;text-align:center}
+  .statbox .big{font-size:42px;font-weight:700;color:var(--accent-dk);line-height:1.1;font-family:var(--serif)}
+  .statbox .cap{color:var(--sub);font-size:15px;margin-top:4px}
+
+  /* bibtex */
+  .bibtex{background:#15181e;color:#d7dbe2;border-radius:12px;padding:20px 22px;white-space:pre-wrap;word-break:break-word;font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:13.5px;line-height:1.7}
+  .bibtex .k{color:#ff8a6e}
+  .copy{float:right;background:#2a2f38;color:#cfd4dc;border:0;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:var(--sans)}
+
+  footer{margin-top:50px;padding:30px 22px;border-top:1px solid var(--line);text-align:center;color:var(--sub);font-size:13.5px}
+  footer a{color:var(--accent);text-decoration:none}
+
+  @media (max-width:640px){
+    h1.title{font-size:28px}
+    h1.title .zh{font-size:19px;white-space:normal}
+    .nav-links{display:none}
+    body{font-size:16px}
+  }
+</style>
+</head>
+<body data-lang="en">
+
+<nav>
+  <div class="nav-in">
+    <div class="nav-links">
+      <a href="#motivation"><span class="en">Motivation</span><span class="zh">动机</span></a>
+      <a href="#method"><span class="en">Method</span><span class="zh">方法</span></a>
+      <a href="#results"><span class="en">Results</span><span class="zh">实验</span></a>
+      <a href="#citation"><span class="en">Citation</span><span class="zh">引用</span></a>
+    </div>
+    <div class="lang-toggle">
+      <button id="btn-en" class="active" onclick="setLang('en')">EN</button>
+      <button id="btn-zh" onclick="setLang('zh')">中</button>
+    </div>
+  </div>
+</nav>
+
+<a id="top"></a>
+<header class="hero">
+  <div class="wrap">
+    <h1 class="title">
+      <span class="en">Vision-OPD: Learning to See Fine Details for Multimodal LLMs via On-Policy Self-Distillation</span>
+      <span class="zh">Vision-OPD：用在线自蒸馏，让多模态模型学会"看清细节"</span>
+    </h1>
+    <div class="tagline">
+      <span class="en">Less is more for fine-grained visual understanding.</span>
+      <span class="zh">少即是多 —— 更小的代价，更强的细粒度视觉理解。</span>
+    </div>
+
+    <div class="authors">
+      Qianhao Yuan<sup>1,2</sup>, Jie Lou<sup>3</sup>, Xing Yu<sup>3</sup>, Hongyu Lin<sup>1</sup>, Le Sun<sup>1</sup>, Xianpei Han<sup>1</sup>, Yaojie Lu<sup>1</sup>
+    </div>
+    <div class="affil">
+      <span class="en"><sup>1</sup>Chinese Information Processing Laboratory, Institute of Software, Chinese Academy of Sciences<br><sup>2</sup>University of Chinese Academy of Sciences &nbsp;·&nbsp; <sup>3</sup>Xiaohongshu Inc.</span>
+      <span class="zh"><sup>1</sup>中国科学院软件研究所 中文信息处理实验室 &nbsp;·&nbsp; <sup>2</sup>中国科学院大学 &nbsp;·&nbsp; <sup>3</sup>小红书</span>
+    </div>
+
+    <div class="btns">
+      <a class="btn pdf" href="https://arxiv.org/pdf/2605.18740" target="_blank" rel="noopener"><span class="en">Paper</span><span class="zh">论文</span></a>
+      <a class="btn code" href="https://github.com/VisionOPD/Vision-OPD" target="_blank" rel="noopener">Code</a>
+      <a class="btn model" href="https://github.com/VisionOPD/Vision-OPD" target="_blank" rel="noopener">Model</a>
+      <a class="btn data" href="https://huggingface.co/datasets/yuanqianhao/Vision-OPD-6K" target="_blank" rel="noopener">Data</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- TEASER -->
+  <section class="teaser">
+  <figure class="plain">
+    <img src="images/fig1_performance.png" alt="Performance comparison">
+    <figcaption>
+      <span class="en"><b>Figure 1.</b> Average accuracy on V* Bench, ZoomBench, HR-Bench 4K/8K, and MME-RealWorld (EN/CN). Vision-OPD-9B ranks <b>first overall</b> at 79.7, and Vision-OPD-4B reaches 77.1 — surpassing far larger open-source and closed-source models with a <b>single forward pass</b>.</span>
+      <span class="zh"><b>图 1.</b> 在 V* Bench、ZoomBench、HR-Bench 4K/8K、MME-RealWorld（EN/CN）上的平均分。Vision-OPD-9B 以 79.7 <b>总体第一</b>，Vision-OPD-4B 也达 77.1 —— 仅凭<b>一次前向传播</b>，便超过了体量大得多的开源与闭源模型。</span>
+    </figcaption>
+  </figure>
+  </section>
+
+  <hr class="div">
+
+  <!-- MOTIVATION -->
+  <section id="motivation">
+    <h2 class="sec"><span class="en">Motivation</span><span class="zh">动机</span></h2>
+
+    <p class="lead">
+      <span class="en">Multimodal LLMs are already strong at general image understanding — but they stumble whenever the answer hinges on a <strong>small but decisive detail</strong> in the image, often producing a "plausible-looking yet wrong" reply.</span>
+      <span class="zh">多模态大模型（MLLM）如今在通用看图说话上已经相当能打，但只要问题的答案藏在图里<strong>一小块决定性的细节</strong>上，它们就常常翻车——给出一个"看着挺像、其实答错"的回答。</span>
+    </p>
+
+    <p>
+      <span class="en">We observe a recurring phenomenon: <strong>the same model answers fine-grained questions far more accurately when fed an evidence-centered crop than when fed the full image.</strong> The model does not <em>fail to recognize</em> the detail — rather, when that detail is buried among the full image's flood of visual tokens, it <strong>cannot focus its attention on the truly relevant evidence</strong>. We call this the <strong>regional-to-global perception gap</strong>.</span>
+      <span class="zh">我们注意到一个反复出现的现象：<strong>同一个模型，把"对准关键证据、裁剪放大后的局部图"喂给它，回答细粒度问题的准确率，明显高于喂完整大图。</strong> 也就是说，模型并不是"认不出"这个细节，而是当细节淹没在整张图的海量视觉 token 里时，它<strong>没法把注意力盯到真正相关的证据上</strong>。我们把这道坎叫作<strong>区域到全局的感知鸿沟（regional-to-global gap）</strong>。</span>
+    </p>
+
+    <p>
+      <span class="en">A concrete example with Qwen3.5-9B — "What color are the ear protectors worn by the person?":</span>
+      <span class="zh">先直观感受一下这道鸿沟。以 Qwen3.5-9B 为例，问它「图中人物戴的护耳是什么颜色？」：</span>
+    </p>
+
+    <figure>
+      <img src="images/fig2_example.png" alt="Full image vs cropped region">
+      <figcaption>
+        <span class="en"><b>Figure 2.</b> A regional-to-global gap example (Qwen3.5-9B). The full-image input leads to a wrong answer, while the cropped-region input yields the correct one.</span>
+        <span class="zh"><b>图 2.</b> 一个区域到全局鸿沟的例子（基于 Qwen3.5-9B）。全图输入导致答错，而裁剪区域输入则得出正确答案。</span>
+      </figcaption>
+    </figure>
+
+    <div class="cmp">
+      <div class="card wrong">
+        <span class="en"><b>Full image</b> → distracted by the global scene, answers "black" <span class="badge r">wrong</span></span>
+        <span class="zh"><b>给完整大图</b> → 被全局场景带偏，答"黑色" <span class="badge r">错</span></span>
+      </div>
+      <div class="card right">
+        <span class="en"><b>Cropped region</b> → decisive evidence stands out, answers "green" <span class="badge g">correct</span></span>
+        <span class="zh"><b>只给裁剪放大后的关键区域</b> → 决定性证据被凸显，答"绿色" <span class="badge g">对</span></span>
+      </div>
+    </div>
+
+    <p>
+      <span class="en">Recent "Thinking-with-Images" methods equip models with crop-and-zoom visual tools so they can inspect local regions at inference time. This works — but at the cost of repeatedly re-encoding images and re-invoking the model, <strong>sharply increasing inference overhead</strong>.</span>
+      <span class="zh">最近流行的 "Thinking-with-Images"（边想边看）给模型配上裁剪、放大的视觉工具，让它在推理时主动去抠局部，确实有效，但代价是反复编码图像、反复调用模型，<strong>推理开销大幅增加</strong>。</span>
+    </p>
+
+    <blockquote>
+      <span class="en">Can we bake the benefit of "zooming in on the key region so the evidence stands out" directly into the model through training — so that a single forward pass can exploit fine-grained evidence from the full image, with no inference-time tools at all?</span>
+      <span class="zh">能不能把"放大关键区域、让证据从背景里凸显出来"这个好处，通过训练直接内化进模型，让它一次前向传播就能从整图里用上细粒度证据，而不必在推理时动用任何工具？</span>
+    </blockquote>
+  </section>
+
+  <hr class="div">
+
+  <!-- METHOD -->
+  <section id="method">
+    <h2 class="sec"><span class="en">Method</span><span class="zh">方法</span></h2>
+
+    <p>
+      <span class="en">Since the model is consistently better at the local view than the global one, its behavior on the crop is a <strong>ready-made, privileged supervision signal for improving its full-image behavior</strong> — let the former teach the latter, internalizing the benefit of "zooming" into a single forward pass.</span>
+      <span class="zh">既然模型看局部一向比看全局强，那么它看裁剪图时的表现，就是一份<strong>现成的、可以拿来提升全图表现的特权监督信号</strong>——用前者去教后者，把"放大"的收益内化成单次前向传播的能力。</span>
+    </p>
+
+    <figure>
+      <img src="images/fig4_method.png" alt="Vision-OPD framework overview">
+      <figcaption>
+        <span class="en"><b>Figure 3.</b> Overview of Vision-OPD. <b>Left:</b> fine-grained questions are generated on evidence-centered crops. <b>Right:</b> the student samples a trajectory <i>y</i> on-policy; along it we compute the per-token divergence between the teacher (crop) and the student (full image), and gradients flow <b>only</b> to the student — a label-free self-distillation.</span>
+        <span class="zh"><b>图 3.</b> Vision-OPD 总览。<b>左：</b>在包含关键证据的裁剪图上生成细粒度问题。<b>右：</b>学生在线采样轨迹 <i>y</i>，沿轨迹计算老师（裁剪图）与学生（全图）的逐 token 散度，梯度只回传给学生，实现无标签的自蒸馏。</span>
+      </figcaption>
+    </figure>
+
+    <p>
+      <span class="en">We propose <strong>Vision-OPD (Vision On-Policy Distillation)</strong>, a regional-to-global online self-distillation framework for fine-grained visual understanding. From <strong>one and the same model</strong>, it instantiates two policies that differ only in <em>what they see</em>:</span>
+      <span class="zh">由此，我们提出 <strong>Vision-OPD（Vision On-Policy Distillation）</strong>，一个面向细粒度视觉理解的<strong>区域到全局在线自蒸馏框架</strong>。它的精髓在于，从<strong>同一个模型</strong>里派生出两个"视角不同"的策略：</span>
+    </p>
+    <ul class="clean">
+      <li><span class="en"><b>Crop Teacher</b> — sees only the evidence-centered, zoomed-in crop; this is its <b>privileged view</b>.</span>
+          <span class="zh"><b>裁剪老师（Teacher）</b>：只看那块对准了关键证据的裁剪放大图，这是它的<b>特权视角</b>。</span></li>
+      <li><span class="en"><b>Full-image Student</b> — sees the complete image, exactly as at standard inference.</span>
+          <span class="zh"><b>全图学生（Student）</b>：看完整大图。</span></li>
+    </ul>
+
+    <h3 class="sub"><span class="en">Training framework</span><span class="zh">训练框架</span></h3>
+    <p>
+      <span class="en">The teacher conditions on the zoomed crop <code>x'</code>, the student on the full image <code>x</code>; both are initialized from the same model. Under the clean local view, the teacher offers the student a "built-in magnifier that needs no extra decoding." For each sample <code>(x, x', q)</code>:</span>
+      <span class="zh">老师看裁剪放大图 <code>x'</code>，学生看完整图像 <code>x</code>，两者从同一模型初始化。在干净的局部视角下，老师能给学生提供一份"自带放大镜、却不必额外解码"的指导。训练时，对每个样本 <code>(x, x', q)</code>：</span>
+    </p>
+    <ol class="steps">
+      <li><span class="en">The student, conditioned on full image <code>x</code> and question <code>q</code>, <b>generates</b> a trajectory <code>y</code> on-policy.</span>
+          <span class="zh">学生看着全图 <code>x</code> 和问题 <code>q</code>，<b>自己生成</b>一条回答轨迹 <code>y</code>。</span></li>
+      <li><span class="en">At every position of <code>y</code>, the student (full image) and teacher (crop) each give a next-token distribution over the <b>same prefix</b>.</span>
+          <span class="zh">对 <code>y</code> 的每个位置，学生（看全图）和老师（看裁剪图）在<b>相同前缀</b>下各给出下一 token 的分布。</span></li>
+      <li><span class="en">Minimize the token-level divergence between the two.</span>
+          <span class="zh">把两者在 token 级别上的散度压到最小。</span></li>
+      <li><span class="en">Gradients flow <b>only to the student</b>; the teacher is a fixed target (stop-gradient).</span>
+          <span class="zh">梯度<b>只回传给学生</b>，老师作为固定目标（stop-gradient）。</span></li>
+    </ol>
+    <p>
+      <span class="en">Because the training prefix is the student's own generation, the train/inference state distributions match — avoiding the compounding "prefix-mismatch" error of offline distillation. And because every token receives a meaningful gradient, training never stalls even when a whole batch happens to be all-correct or all-wrong.</span>
+      <span class="zh">因为训练前缀就是学生自己生成的序列，训练和推理的状态分布对得上，避开了离线蒸馏里"前缀对不上、误差越滚越大"的毛病；又因为每个 token 都拿到有意义的梯度，哪怕一批样本恰好全对或全错，训练也不会停摆。</span>
+    </p>
+
+    <h3 class="sub"><span class="en">Data synthesis</span><span class="zh">数据合成</span></h3>
+    <p>
+      <span class="en">A <strong>fully automatic</strong> pipeline builds triples <code>(x, x', q)</code> from unlabeled images — only about <strong>6.2K</strong> in total:</span>
+      <span class="zh">我们用一条<strong>全自动</strong>流水线，从无标注图像里造出三元组 <code>(x, x', q)</code>，总共合成约 <strong>6.2K</strong> 条：</span>
+    </p>
+    <ul class="clean">
+      <li><span class="en">Detect and segment objects in the original image, picking <b>tiny-area</b> regions <code>R</code> most likely to hold fine-grained evidence.</span>
+          <span class="zh">对原图做物体识别和分割，挑出<b>面积占比很小</b>（最可能藏着细粒度证据）的区域 <code>R</code>。</span></li>
+      <li><span class="en">Generate a question <code>q</code> answerable "<b>from that region alone</b>."</span>
+          <span class="zh">让模型给每个区域生成一个"<b>光看这块就能答</b>"的问题 <code>q</code>。</span></li>
+      <li><span class="en">Overlay the region's bounding box back onto the full image with a spatial constraint (e.g. "only focus on the object in the red box") to form the student input <code>x</code>.</span>
+          <span class="zh">把区域的边界框<b>叠回原图</b>，再加一句空间约束（比如"只关注红框里的物体"），得到学生输入 <code>x</code>。</span></li>
+      <li><span class="en">Crop and zoom the region by <b>2×</b> to form the teacher input <code>x'</code>.</span>
+          <span class="zh">把这块区域裁剪、放大 <b>2×</b>，得到老师输入 <code>x'</code>。</span></li>
+    </ul>
+    <p>
+      <span class="en">The same question is posed under both views; the gap between them is exactly the signal self-distillation learns from.</span>
+      <span class="zh">同一个问题，在两种视角下各问一遍，两者的差距就是自蒸馏要学的信号。</span>
+    </p>
+
+    <h3 class="sub"><span class="en">Key design choices</span><span class="zh">关键设计</span></h3>
+    <ul class="clean">
+      <li><span class="en"><b>Divergence objective:</b> generalized Jensen–Shannon divergence <b>JSD (β=0.5)</b>, better than pure forward or reverse KL.</span>
+          <span class="zh"><b>散度目标函数：</b>用广义 Jensen–Shannon 散度 <b>JSD(β=0.5)</b>，效果好过纯前向 KL 和反向 KL。</span></li>
+      <li><span class="en"><b>Top-K logits distillation (K=100):</b> distill only the top-100 logits plus a tail-probability term — saving the memory of full-vocabulary distillation while preserving almost all logit information.</span>
+          <span class="zh"><b>Top-K logits 蒸馏 (K=100)：</b>只蒸馏 top-100 的 logits，再补一个尾概率项，既省下全词表蒸馏的高显存，又留住了绝大部分 logits 信息。</span></li>
+      <li><span class="en"><b>EMA-regularized teacher (α=0.05):</b> teacher and student start from the same model and update with training. Using the current policy directly as the teacher causes a <b>full collapse</b> (accuracy drops to near 0); EMA regularization is far more stable.</span>
+          <span class="zh"><b>老师用 EMA 正则(α=0.05)：</b>老师和学生从同一模型出发、随训练更新；要是直接拿当前策略当老师，训练会<b>整体崩盘</b>（准确率掉到接近 0），EMA 正则更稳。</span></li>
+    </ul>
+    <p>
+      <span class="en">Altogether, Vision-OPD satisfies five conditions at once: <strong>on-policy sampling, dense token-level supervision, no external teacher, no ground-truth labels, and no verifier.</strong> Since crops <code>x'</code> are drawn fully automatically from unlabeled images, the method adapts to any image corpus and internalizes fine-grained visual understanding into a single forward pass.</span>
+      <span class="zh">到这一步，Vision-OPD 同时满足五个条件：<strong>在线采样、稠密 token 级监督、不用外部老师、不用真值标签、不用验证器</strong>。又因为裁剪图 <code>x'</code> 是从无标注图像里全自动抽出来的，这套方法能适配任意图像语料，把细粒度视觉理解直接内化进一次前向传播。</span>
+    </p>
+  </section>
+
+  <hr class="div">
+
+  <!-- RESULTS -->
+  <section id="results">
+    <h2 class="sec"><span class="en">Results</span><span class="zh">实验</span></h2>
+
+    <p>
+      <span class="en">We apply Vision-OPD to Qwen3.5-4B/9B and evaluate on fine-grained visual understanding benchmarks: <strong>V* Bench, ZoomBench, HR-Bench 4K/8K, and MME-RealWorld (EN/CN)</strong>.</span>
+      <span class="zh">我们把 Vision-OPD 用在 Qwen3.5-4B/9B 上，在 <strong>V* Bench、ZoomBench、HR-Bench 4K/8K、MME-RealWorld(EN/CN)</strong> 等细粒度视觉理解基准上评测。</span>
+    </p>
+
+    <figure>
+      <img src="images/table1_comparison.png" alt="Comparison with SOTA MLLMs">
+      <figcaption>
+        <span class="en"><b>Table 1.</b> Comparison with SOTA MLLMs (accuracy %), spanning "Thinking-with-Images" agentic methods, closed-source models, and open-source models. Vision-OPD achieves the best overall performance.</span>
+        <span class="zh"><b>表 1.</b> 与 SOTA 多模态模型的对比（准确率 %）。涵盖 "Thinking-with-Images" 智能体方法、闭源模型、开源模型三组；Vision-OPD 取得最佳总体性能。</span>
+      </figcaption>
+    </figure>
+
+    <div class="statbox">
+      <div class="big">79.68</div>
+      <div class="cap"><span class="en">Vision-OPD-9B average — <b>#1 overall</b> among all compared models</span><span class="zh">Vision-OPD-9B 平均分 —— 所有对比模型中<b>总体第一</b></span></div>
+    </div>
+
+    <ul class="clean">
+      <li><span class="en">Beats closed-source <b>Gemini-3.1-Pro (79.25)</b> and <b>Gemini-3.5-Flash (79.24)</b>.</span>
+          <span class="zh">超过闭源的 <b>Gemini-3.1-Pro（79.25）</b>、<b>Gemini-3.5-Flash（79.24）</b>。</span></li>
+      <li><span class="en">Beats far larger open-source models, e.g. <b>Qwen3.5 (397B, 77.44)</b>.</span>
+          <span class="zh">超过体量大得多的开源模型，比如 <b>Qwen3.5（397B，77.44）</b>。</span></li>
+      <li><span class="en">Beats various <b>"Thinking-with-Images" agentic methods</b> — while Vision-OPD needs only a <b>single forward pass</b>.</span>
+          <span class="zh">也超过各类 <b>"Thinking-with-Images" 智能体方法</b>，而 Vision-OPD 只需<b>一次前向传播</b>。</span></li>
+    </ul>
+
+    <p>
+      <span class="en"><strong>Vision-OPD-4B also reaches 77.07</strong>, showing the method can effectively "pack" fine-grained visual understanding into existing models.</span>
+      <span class="zh"><strong>Vision-OPD-4B 的平均分也有 77.07</strong>，说明 Vision-OPD 确实能把细粒度视觉理解的本事，有效地"装"进现有模型里。</span>
+    </p>
+
+    <p>
+      <span class="en">Crucially, it is <strong>specialized yet not lopsided</strong>: on held-out benchmarks outside the training distribution (MMVP, CV-Bench, MMStar, POPE), it <strong>maintains or even improves</strong> general perception and reasoning — no "learn the new, forget the old" common to task-specific fine-tuning. The gains <strong>do not come at the cost of forgetting</strong>.</span>
+      <span class="zh">更难得的是它<strong>专精却不偏科</strong>：在训练分布之外的基准（MMVP、CV-Bench、MMStar、POPE）上，它<strong>保持甚至提升</strong>了通用的看图与推理能力，没有出现专项微调常见的"学了新的、忘了旧的"。换句话说，这份提升<strong>不是拿遗忘换来的</strong>。</span>
+    </p>
+  </section>
+
+  <hr class="div">
+
+  <!-- CONCLUSION -->
+  <section id="conclusion">
+    <h2 class="sec"><span class="en">Conclusion</span><span class="zh">总结</span></h2>
+    <p>
+      <span class="en">We present <strong>Vision-OPD</strong>, a regional-to-global online self-distillation framework for fine-grained visual understanding. The insight is simple: an MLLM's fine-grained bottleneck is often <strong>not "can it recognize" but "can it stay focused"</strong> — and the model's own privileged perception under a crop can supervise its full-image behavior. From a single model, Vision-OPD derives a crop teacher and a full-image student and runs token-level self-distillation on the student's on-policy trajectories, with <strong>no stronger external teacher, no ground-truth labels, no reward verifier, and no inference-time tools</strong>. With only ~6.2K fully-auto-synthesized examples, it lifts a 9B model to match or exceed closed-source models, far larger open-source models, and "Thinking-with-Images" agentic methods on fine-grained benchmarks — without sacrificing general ability.</span>
+      <span class="zh">我们提出了 <strong>Vision-OPD</strong>——一个面向细粒度视觉理解的区域到全局在线自蒸馏框架。它背后的洞见很简单：大模型的细粒度瓶颈，往往<strong>不在"认不认得"，而在"盯不盯得住"</strong>；而模型自己在裁剪条件下的特权感知，恰好可以拿来监督它的全图行为。Vision-OPD 从同一个模型派生出裁剪老师和全图学生，在学生的在线轨迹上做 token 级自蒸馏，<strong>不用更强的外部老师、不用真值标签、不用奖励验证器，推理时也不用任何工具</strong>。仅凭约 6.2K 条全自动合成数据，它就让一个 9B 模型在多个细粒度视觉理解基准上，打平甚至超过了闭源模型、更大的开源模型和 "Thinking-with-Images" 智能体方法，同时不丢通用能力。</span>
+    </p>
+  </section>
+
+  <hr class="div">
+
+  <!-- CITATION -->
+  <section id="citation">
+    <h2 class="sec"><span class="en">Citation</span><span class="zh">引用</span></h2>
+    <div class="bibtex">
+<button class="copy" onclick="copyBib()"><span class="en">Copy</span><span class="zh">复制</span></button><span class="k">@article</span>{yuan2026visionopd,
+  title   = {Vision-OPD: Learning to See Fine Details for Multimodal LLMs via On-Policy Self-Distillation},
+  author  = {Yuan, Qianhao and Lou, Jie and Yu, Xing and Lin, Hongyu and Sun, Le and Han, Xianpei and Lu, Yaojie},
+  journal = {arXiv preprint arXiv:2605.18740},
+  year    = {2026}
+}</div>
+  </section>
+
+</div>
+
+<footer>
+  <p>
+    <span class="en">© 2026 Vision-OPD. &nbsp;Page template inspired by academic project pages. &nbsp;<a href="https://arxiv.org/abs/2605.18740" target="_blank" rel="noopener">arXiv:2605.18740</a></span>
+    <span class="zh">© 2026 Vision-OPD. &nbsp;页面采用学术项目主页风格。&nbsp;<a href="https://arxiv.org/abs/2605.18740" target="_blank" rel="noopener">arXiv:2605.18740</a></span>
+  </p>
+</footer>
+
+<script>
+  function setLang(l){
+    document.documentElement.setAttribute('lang', l==='zh'?'zh-CN':'en');
+    document.documentElement.setAttribute('data-lang', l);
+    document.body.setAttribute('data-lang', l);
+    document.getElementById('btn-en').classList.toggle('active', l==='en');
+    document.getElementById('btn-zh').classList.toggle('active', l==='zh');
+    try{ localStorage.setItem('visionopd-lang', l); }catch(e){}
+  }
+  // restore preference, else default by browser
+  (function(){
+    var saved=null;
+    try{ saved=localStorage.getItem('visionopd-lang'); }catch(e){}
+    if(!saved){ saved = (navigator.language||'').toLowerCase().startsWith('zh') ? 'zh' : 'en'; }
+    setLang(saved);
+  })();
+  function copyBib(){
+    var t = document.querySelector('.bibtex').innerText.replace(/^\s*(Copy|复制)\s*/,'').trim();
+    navigator.clipboard.writeText(t);
+  }
+</script>
+
+</body>
+</html>
